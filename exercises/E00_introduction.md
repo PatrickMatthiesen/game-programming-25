@@ -21,7 +21,7 @@ A couple of useful API documentation links
 	- https://wiki.libsdl.org/SDL3/CategoryRect
 
 ## 00.0 Hello SDL (Live Coding)
-We will be togheter a simple interactive application with SDL, from scratch. We will focus on the basics:
+We will be together a simple interactive application with SDL, from scratch. We will focus on the basics:
 - main loop
 - logging and timing
 - displaying a window
@@ -31,7 +31,7 @@ We will be togheter a simple interactive application with SDL, from scratch. We 
 ## 00.1 Controlling a player
 Starting from the live-coded example, move the "player" on the screen using the APIs showcased during the lab:
 - read input/output from the WASD and move the "player" around
-- depending how you implemented the movement, it could be very smooth and noce or jagged and unnatural. Think back the structure of the main loop and
+- depending how you implemented the movement, it could be very smooth and nice, or jagged and unnatural. Think back the structure of the main loop and
   the input polling, how can you ensure smooth player movement?
 
 ## 00.2 Get Creative (optional)

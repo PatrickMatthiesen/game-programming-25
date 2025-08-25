@@ -2,7 +2,7 @@
 Repository for the IT University of Copenhagen Game Programming course.
 
 ## Setup
-You are free to use any development setup you want, as long as you can confortably build and debug CMake projects.
+You are free to use any development setup you want, as long as you can comfortably build and debug CMake projects.
 
 If you don't have an IDE setup, you can follow this quick platform-independent setup:
 1. download and install [CMake](https://cmake.org/download/) (for mac users, use [brew](https://brew.sh/) instead of downloading from the website)
@@ -21,7 +21,7 @@ Build and run them from there, or set one to be the "default" target (`right-cli
 ## Before the course start
 - [ ] setup and test you development environment
 - [ ] build and run the files in the `examples` folder
-- [ ] be sure to befamiliar with the basics of C/C++ (syntax, control flow, variable and functions, structs/arrays/enums/unions/, pointers). You can check the [course page](https://learnit.itu.dk/course/view.php?id=3024686#section-1) for additional resources on this
+- [ ] be sure to be familiar with the basics of C/C++ (syntax, control flow, variable and functions, structs/arrays/enums/unions/, pointers). You can check the [course page](https://learnit.itu.dk/course/view.php?id=3024686#section-1) for additional resources on this
 - [ ] refresh a bit of linear algebra and trigonometry
 
-I've setu up a folder for you (`playground`) if you want to test things out. Just create a `.cpp` file in there and reconfigure the CMake project, and you can try everything that doesn't involve external dependencies.
+I've setup a folder for you (`playground`) if you want to test things out. Just create a `.cpp` file in there and reconfigure the CMake project, and you can try everything that doesn't involve external dependencies.

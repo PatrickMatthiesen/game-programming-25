@@ -12,5 +12,5 @@ add_subdirectory(lib/SDL)
 # repo's executables
 add_subdirectory(examples)
 add_subdirectory(playground)
-add_subdirectory(live_coding)
+# add_subdirectory(live_coding) # uncomment if you want to use the live coding examples
 add_subdirectory(exercises)

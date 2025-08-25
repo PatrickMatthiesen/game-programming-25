@@ -15,7 +15,7 @@ int main(void)
 	// increase the zoom to make debug text more legible
 	// (ie, on the class projector, we will usually use 2)
 	{
-		float zoom = 1;
+		float zoom = 2;
 		window_w /= zoom;
 		window_h /= zoom;
 		SDL_SetRenderScale(renderer, zoom, zoom);
@@ -38,7 +38,6 @@ int main(void)
 	player_rect.x = window_w / 2 - player_size / 2;
 	player_rect.y = window_h / 2 - player_size / 2;
 
-
 	bool btn_pressed_up = false;
 
 	SDL_GetCurrentTime(&walltime_frame_beg);
@@ -54,8 +53,27 @@ int main(void)
 					quit = true;
 					break;
 				case SDL_EVENT_KEY_DOWN:
-					if(event.key.key >= SDLK_0 && event.key.key < SDLK_5)
-						delay_type = event.key.key - SDLK_0;
+					int key = event.key.key;
+					if(key >= SDLK_0 && key < SDLK_5) {
+						delay_type = key - SDLK_0;
+						break;
+					}
+
+					switch(key)
+					{
+						case SDLK_W:
+							player_rect.y -= 10;
+							break;
+						case SDLK_S:
+							player_rect.y += 10;
+							break;
+						case SDLK_A:
+							player_rect.x -= 10;
+							break;
+						case SDLK_D:
+							player_rect.x += 10;
+							break;
+					}
 					break;
 			}
 		}
