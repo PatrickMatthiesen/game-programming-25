@@ -8,6 +8,7 @@ set(ARCH x64)
 
 # 3rd party libraries
 add_subdirectory(lib/SDL)
+include_directories(lib/stb)
 
 # repo's executables
 add_subdirectory(examples)
