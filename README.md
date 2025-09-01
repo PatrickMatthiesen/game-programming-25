@@ -19,6 +19,7 @@ After reopening the editor, you should see all available targets in the cmake ta
 Build and run them from there, or set one to be the "default" target (`right-click->Set Launch/Debug Target`)
 
 ## Before the course start
+
 - [ ] setup and test you development environment
 - [ ] build and run the files in the `examples` folder
 - [ ] be sure to be familiar with the basics of C/C++ (syntax, control flow, variable and functions, structs/arrays/enums/unions/, pointers). You can check the [course page](https://learnit.itu.dk/course/view.php?id=3024686#section-1) for additional resources on this

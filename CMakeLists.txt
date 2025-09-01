@@ -14,3 +14,4 @@ add_subdirectory(examples)
 add_subdirectory(playground)
 # add_subdirectory(live_coding) # uncomment if you want to use the live coding examples
 add_subdirectory(exercises)
+add_subdirectory(exercises_solutions)
