@@ -66,75 +66,37 @@ int main(void) {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
       switch (event.type) {
-      case SDL_EVENT_QUIT:
-        quit = true;
-        break;
-      case SDL_EVENT_KEY_DOWN: {
-        int keycode = event.key.key;          // SDL_Keycode
-        SDL_Scancode sc = event.key.scancode; // SDL_Scancode
-        if (keycode >= SDLK_0 && keycode < SDLK_5) {
-          delay_type = keycode - SDLK_0;
-          break; // exit switch(event.type)
-        }
+        case SDL_EVENT_QUIT:
+          quit = true;
+          break;
+        case SDL_EVENT_KEY_UP:
+        case SDL_EVENT_KEY_DOWN: {
+          const bool is_down = event.key.down;
+          switch (event.key.scancode) {
+            // player 1 (WASD)
+            case SDL_SCANCODE_W: btn_pressed_up_p1    = is_down; break;
+            case SDL_SCANCODE_S: btn_pressed_down_p1  = is_down; break;
+            case SDL_SCANCODE_A: btn_pressed_left_p1  = is_down; break;
+            case SDL_SCANCODE_D: btn_pressed_right_p1 = is_down; break;
 
-        switch (sc) {
-        case SDL_SCANCODE_W:
-          btn_pressed_up_p1 = true;
+            // player 2 (arrows)
+            case SDL_SCANCODE_UP:    btn_pressed_up_p2    = is_down; break;
+            case SDL_SCANCODE_DOWN:  btn_pressed_down_p2  = is_down; break;
+            case SDL_SCANCODE_LEFT:  btn_pressed_left_p2  = is_down; break;
+            case SDL_SCANCODE_RIGHT: btn_pressed_right_p2 = is_down; break;
+
+            default: break;
+          }
+
+          // one-shot actions only on key down
+          if (is_down) {
+            const SDL_Keycode key = event.key.key;
+            if (key >= SDLK_0 && key < SDLK_5) {
+              delay_type = static_cast<int>(key - SDLK_0);
+            }
+          }
           break;
-        case SDL_SCANCODE_S:
-          btn_pressed_down_p1 = true;
-          break;
-        case SDL_SCANCODE_A:
-          btn_pressed_left_p1 = true;
-          break;
-        case SDL_SCANCODE_D:
-          btn_pressed_right_p1 = true;
-          break;
-		case SDL_SCANCODE_UP:
-		  btn_pressed_up_p2 = true;
-		  break;
-		case SDL_SCANCODE_DOWN:
-		  btn_pressed_down_p2 = true;
-		  break;
-		case SDL_SCANCODE_LEFT:
-		  btn_pressed_left_p2 = true;
-		  break;
-		case SDL_SCANCODE_RIGHT:
-		  btn_pressed_right_p2 = true;
-		  break;
         }
-        break;
-      }
-      case SDL_EVENT_KEY_UP: {
-        SDL_Scancode sc = event.key.scancode;
-        switch (sc) {
-        case SDL_SCANCODE_W:
-          btn_pressed_up_p1 = false;
-          break;
-        case SDL_SCANCODE_S:
-          btn_pressed_down_p1 = false;
-          break;
-        case SDL_SCANCODE_A:
-          btn_pressed_left_p1 = false;
-          break;
-        case SDL_SCANCODE_D:
-          btn_pressed_right_p1 = false;
-          break;
-		case SDL_SCANCODE_UP:
-		  btn_pressed_up_p2 = false;
-		  break;
-		case SDL_SCANCODE_DOWN:
-		  btn_pressed_down_p2 = false;
-		  break;
-		case SDL_SCANCODE_LEFT:
-		  btn_pressed_left_p2 = false;
-		  break;
-		case SDL_SCANCODE_RIGHT:
-		  btn_pressed_right_p2 = false;
-		  break;
-        }
-        break;
-      }
       }
     }
 
@@ -260,4 +222,4 @@ void movePlayer(SDL_Time time_elapsed_frame, bool btn_pressed_left,
     player_rect.x = window_w - player_rect.w;
   if (player_rect.y + player_rect.h > window_h)
     player_rect.y = window_h - player_rect.h;
-}
+};
