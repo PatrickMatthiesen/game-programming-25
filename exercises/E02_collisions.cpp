@@ -16,12 +16,20 @@
 #define WINDOW_W 800
 #define WINDOW_H 600
 
-#define ENTITY_COUNT 128
+#define ENTITY_COUNT 4096
 #define MAX_COLLISIONS 1024   // num max collisions per frame
+#define COLLISION_RADIUS 16
+
+static const int CollisionZoneSize = 2 * COLLISION_RADIUS;
+static const int MaxEntetiesPerCell = 4 * CollisionZoneSize * CollisionZoneSize / (COLLISION_RADIUS * COLLISION_RADIUS); // rough estimate 
+static const int NumCellX = (WINDOW_W + CollisionZoneSize - 1) / CollisionZoneSize;
+static const int NumCellY = (WINDOW_H + CollisionZoneSize - 1) / CollisionZoneSize;
+static const int NumCells = NumCellX * NumCellY;
 
 bool DEBUG_separate_collisions   = true;
 bool DEBUG_render_colliders      = true;
 bool DEBUG_render_texture_border = false;
+
 
 struct Entity;
 struct EntityCollisionInfo;
@@ -56,6 +64,10 @@ struct GameState
 
 	// SDL-allocated structures
 	SDL_Texture* atlas;
+
+	// Cells
+	Entity* cells[NumCells][MaxEntetiesPerCell]; // TODO
+    int cell_counts[NumCells];
 };
 
 static SDL_Texture* texture_create(SDLContext* context, const char* path)
@@ -149,6 +161,33 @@ static void entity_destroy(GameState* state, Entity* entity)
 // collisions
 // ********************************************************************************************************************
 
+static int get_cell(float x, float y)
+// Gets the cell index for the given position
+{
+	return SDL_clamp((int)(x / CollisionZoneSize), 0, NumCellX - 1)      // x
+		+ SDL_clamp((int)(y / CollisionZoneSize), 0, NumCellY - 1) * NumCellX; // y)
+}
+
+static void partition_entities(GameState* state, SDLContext* context)
+{
+	 // Clear cell counts
+    for(int i=0; i < NumCells; ++i) state->cell_counts[i] = 0;
+
+	// Add entities to cells
+    for(int i=0; i < state->entities_alive_count; ++i)
+    {
+        Entity* e = &state->entities[i];
+        int cell = get_cell(e->position.x, e->position.y);
+        
+		// Add to the correct cell
+        if(state->cell_counts[cell] < MaxEntetiesPerCell)
+            state->cells[cell][state->cell_counts[cell]++] = e;
+        else
+            SDL_Log("[WARN] cell %d overflow", cell);
+    }
+}
+
+
 struct EntityCollisionInfo
 {
 	Entity* e1;
@@ -160,20 +199,25 @@ struct EntityCollisionInfo
 
 static void collision_check(GameState* state)
 {
-	state->frame_collisions_count = 0;
-	for(int i = 0; i < state->entities_alive_count - 1; ++i)
-	{
-		Entity* e1 = &state->entities[i];
-		
-		for(int j = i + 1; j < state->entities_alive_count; ++j)
-		{
-			Entity* e2 = &state->entities[j];
+    state->frame_collisions_count = 0;
 
-			if(itu_lib_overlaps_circle_circle(
-				e1->position + e1->collider_offset, e1->collider_radius,
-				e2->position + e2->collider_offset, e2->collider_radius
-			))
-			{
+    for(int cell_idx = 0; cell_idx < NumCells; ++cell_idx)
+    {
+        int cell_count = state->cell_counts[cell_idx];
+        Entity** cell_entities = state->cells[cell_idx];
+
+        for(int i = 0; i < cell_count - 1; ++i)
+        {
+            Entity* e1 = cell_entities[i];
+            for(int j = i + 1; j < cell_count; ++j)
+            {
+                Entity* e2 = cell_entities[j];
+
+                if(!itu_lib_overlaps_circle_circle(
+                    e1->position + e1->collider_offset, e1->collider_radius,
+                    e2->position + e2->collider_offset, e2->collider_radius))
+					continue;
+                
 				e1->sprite.tint = COLOR_RED;
 				e2->sprite.tint = COLOR_RED;
 
@@ -183,7 +227,6 @@ static void collision_check(GameState* state)
 					return;
 				}
 
-				// NOTE: here we are redoing a bunch of work that we already done in the overlap test. An easy optimization is do to have the test return the collision info
 				vec2f v = (e2->position + e2->collider_offset) - (e1->position + e1->collider_offset);
 				float l = length(v);
 				float separation_vector = e1->collider_radius + e2->collider_radius - l;
@@ -191,13 +234,13 @@ static void collision_check(GameState* state)
 
 				state->frame_collisions[new_collision_idx].e1 = e1;
 				state->frame_collisions[new_collision_idx].e2 = e2;
-				state->frame_collisions[new_collision_idx].normal = v / l; // normalize vector (we already need the length, so we don't need to call normalize which would do that anyway)
+				state->frame_collisions[new_collision_idx].normal = v / l;
 				state->frame_collisions[new_collision_idx].separation = separation_vector;
-			}
-		}
-	}
+                
+            }
+        }
+    }
 }
-
 static void collision_separate(GameState* state)
 {
 	for(int i = 0; i < state->frame_collisions_count; ++i)
@@ -242,15 +285,20 @@ static void game_reset(SDLContext* context, GameState* state)
 	player->position.x = (float)context->window_w / 2;
 	player->position.y = (float)context->window_h / 2;
 	player->size = vec2f{ 64, 64 };
-	player->sprite.texture = state->atlas;
-	player->sprite.rect = SDL_FRect{ 0, 0, 128, 128 };
-	player->sprite.tint = COLOR_WHITE;
-	player->sprite.pivot = vec2f{ 0.5f, 0.5f };
-	player->collider_radius = 16;
+	player->sprite = {
+		.texture = state->atlas,
+		.rect = SDL_FRect{ 0, 0, 128, 128 },
+		.tint = COLOR_WHITE,
+		.pivot = vec2f{ 0.5f, 0.5f }
+	};
+	player->collider_radius = COLLISION_RADIUS;
 	state->player = player;
 
+	int rows = (int)sqrt(ENTITY_COUNT);
+	int cols = (ENTITY_COUNT + rows - 1) / rows;
+
 	// grid pattern
-	for(int i = 0; i < 9; ++i)
+	for(int i = 0; i < ENTITY_COUNT; ++i) // limit to 4096 for now
 	{
 		Entity* entity = entity_create(state);
 		if(!entity)
@@ -259,15 +307,22 @@ static void game_reset(SDLContext* context, GameState* state)
 			break;
 		}
 		
-		vec2f coords = vec2f{ 1.5f + i % 3, 1.5f + i / 3};
-		entity->size = vec2f{ 64, 64 };
+		vec2f coords = vec2f{ 1.5f + i % rows, 1.5f + i / cols};
+		entity->size = vec2f{ 32, 32 };
 		entity->position = mul_element_wise(entity->size,  coords);
-		entity->sprite.texture = state->atlas;
-		entity->sprite.rect = SDL_FRect{ 0, 4*128, 128, 128 };
-		entity->sprite.tint = COLOR_WHITE,
-		entity->sprite.pivot = vec2f{ 0.5f, 0.5f };
-		entity->collider_radius = 32;
+		entity->sprite = {
+			.texture = state->atlas,
+			.rect = SDL_FRect{ 0, 4*128, 128, 128 },
+			.tint = COLOR_WHITE,
+			.pivot = vec2f{ 0.5f, 0.5f }
+		};
+		entity->collider_offset = vec2f{0,0};	
+		entity->collider_radius = COLLISION_RADIUS;
 	}
+
+	// reset collisions
+	// state->frame_collisions_count = 0;
+	// partition_entities(state, context);
 }
 
 static void game_update(SDLContext* context, GameState* state)
@@ -290,8 +345,19 @@ static void game_update(SDLContext* context, GameState* state)
 	{
 		Entity* entity = &state->entities[i];
 		entity->sprite.tint = COLOR_WHITE;
+
+		// Clamp to window
+		float r = entity->collider_radius;
+        if(entity->position.x < r) entity->position.x = r;
+        if(entity->position.x > context->window_w - r) entity->position.x = context->window_w - r;
+        if(entity->position.y < r) entity->position.y = r;
+        if(entity->position.y > context->window_h - r) entity->position.y = context->window_h - r;
+
 	}
 
+	partition_entities(state, context);
+
+	// collisions
 	collision_check(state);
 	if(DEBUG_separate_collisions)
 		collision_separate(state);
