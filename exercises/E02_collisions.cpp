@@ -13,15 +13,16 @@
 #define ENABLE_DIAGNOSTICS
 
 #define TARGET_FRAMERATE SECONDS(1) / 60
-#define WINDOW_W 800
-#define WINDOW_H 600
+#define WINDOW_W 1000
+#define WINDOW_H 900
 
-#define ENTITY_COUNT 4096
-#define MAX_COLLISIONS 1024   // num max collisions per frame
-#define COLLISION_RADIUS 16
+#define ENTITY_COUNT 1000
+#define MAX_COLLISIONS 2024   // num max collisions per frame
+#define COLLISION_RADIUS 12
 
-static const int CollisionZoneSize = 2 * COLLISION_RADIUS;
-static const int MaxEntetiesPerCell = 4 * CollisionZoneSize * CollisionZoneSize / (COLLISION_RADIUS * COLLISION_RADIUS); // rough estimate 
+static const int CollisionZoneSize = 2 * COLLISION_RADIUS; // cell size heuristic: ~ 2x radius
+// Max entities per cell (tune). Previous heuristic could produce very large numbers; keep modest to catch clustering.
+static const int MaxEntitiesPerCell = 32; // adjust as needed; assertions will warn if insufficient
 static const int NumCellX = (WINDOW_W + CollisionZoneSize - 1) / CollisionZoneSize;
 static const int NumCellY = (WINDOW_H + CollisionZoneSize - 1) / CollisionZoneSize;
 static const int NumCells = NumCellX * NumCellY;
@@ -65,10 +66,34 @@ struct GameState
 	// SDL-allocated structures
 	SDL_Texture* atlas;
 
-	// Cells
-	Entity* cells[NumCells][MaxEntetiesPerCell]; // TODO
-    int cell_counts[NumCells];
+	// Cells store entity indices to remain valid across swap-delete
+	int cells[NumCells][MaxEntitiesPerCell];
+	int cell_counts[NumCells];
+
+	// Diagnostics
+	int dbg_overflow_count;
+	int dbg_max_cell_count;
+	float dbg_avg_cell_count;
+
+	// RNG state (simple LCG for deterministic spawning)
+	uint32_t rng_state;
+
+	// Collision diagnostics
+	bool collisions_truncated;
+	int  collisions_capacity; // equals MAX_COLLISIONS for diagnostics
 };
+
+static inline uint32_t rng_next(GameState* s)
+{
+    // LCG constants from Numerical Recipes
+    s->rng_state = s->rng_state * 1664525u + 1013904223u;
+    return s->rng_state;
+}
+
+static inline float rng_next01(GameState* s)
+{
+    return (rng_next(s) >> 8) * (1.0f / 16777216.0f); // 24-bit mantissa fraction
+}
 
 static SDL_Texture* texture_create(SDLContext* context, const char* path)
 {
@@ -145,6 +170,9 @@ static Entity* entity_create(GameState* state)
 	Entity* ret = &state->entities[state->entities_alive_count];
 	++state->entities_alive_count;
 
+	// initialize defaults that might not be overwritten later
+	ret->collider_offset = vec2f{0,0};
+
 	return ret;
 }
 
@@ -152,7 +180,7 @@ static Entity* entity_create(GameState* state)
 static void entity_destroy(GameState* state, Entity* entity)
 {
 	// NOTE: here we want to fail hard, nobody should pass us a pointer not gotten from `entity_create()`
-	SDL_assert(entity < state->entities || entity > state->entities + ENTITY_COUNT);
+	SDL_assert(entity >= state->entities && entity < state->entities + ENTITY_COUNT);
 
 	--state->entities_alive_count;
 	*entity = state->entities[state->entities_alive_count];
@@ -170,21 +198,39 @@ static int get_cell(float x, float y)
 
 static void partition_entities(GameState* state, SDLContext* context)
 {
-	 // Clear cell counts
-    for(int i=0; i < NumCells; ++i) state->cell_counts[i] = 0;
+	// Clear cell counts
+	for(int i=0; i < NumCells; ++i) state->cell_counts[i] = 0;
+	state->dbg_overflow_count = 0;
+	state->collisions_truncated = false; // reset each frame
 
-	// Add entities to cells
-    for(int i=0; i < state->entities_alive_count; ++i)
-    {
-        Entity* e = &state->entities[i];
-        int cell = get_cell(e->position.x, e->position.y);
-        
-		// Add to the correct cell
-        if(state->cell_counts[cell] < MaxEntetiesPerCell)
-            state->cells[cell][state->cell_counts[cell]++] = e;
-        else
-            SDL_Log("[WARN] cell %d overflow", cell);
-    }
+	// Insert entities (single cell based on center)
+	for(int i=0; i < state->entities_alive_count; ++i)
+	{
+		Entity* e = &state->entities[i];
+		int cell = get_cell(e->position.x, e->position.y);
+		if(cell < 0 || cell >= NumCells) continue; // should not happen with clamping
+		int count = state->cell_counts[cell];
+		if(count < MaxEntitiesPerCell)
+		{
+			state->cells[cell][count] = i; // store index
+			state->cell_counts[cell] = count + 1;
+		}
+		else
+		{
+			++state->dbg_overflow_count;
+			// Keep last valid indexes; skip additional ones
+			SDL_Log("[WARN] cell %d overflow (cap=%d, attempted count=%d)", cell, MaxEntitiesPerCell, count+1);
+		}
+	}
+
+	// Diagnostics aggregation
+	int total = 0; int nonEmpty=0; int maxc=0;
+	for(int c=0; c < NumCells; ++c){
+		int cc = state->cell_counts[c];
+		if(cc){ total += cc; ++nonEmpty; if(cc>maxc) maxc=cc; }
+	}
+	state->dbg_max_cell_count = maxc;
+	state->dbg_avg_cell_count = nonEmpty? (float)total / (float)nonEmpty : 0.0f;
 }
 
 
@@ -199,47 +245,112 @@ struct EntityCollisionInfo
 
 static void collision_check(GameState* state)
 {
-    state->frame_collisions_count = 0;
+	state->frame_collisions_count = 0;
 
-    for(int cell_idx = 0; cell_idx < NumCells; ++cell_idx)
-    {
-        int cell_count = state->cell_counts[cell_idx];
-        Entity** cell_entities = state->cells[cell_idx];
+	// Forward neighbor offsets (covers all unique pairs once)
+	const int OFF[][2] = {
+		{0,0}, {1,0}, {0,1}, {1,1}, {-1,1}
+	};
+	const int OFF_COUNT = (int)(sizeof(OFF)/sizeof(OFF[0]));
 
-        for(int i = 0; i < cell_count - 1; ++i)
-        {
-            Entity* e1 = cell_entities[i];
-            for(int j = i + 1; j < cell_count; ++j)
-            {
-                Entity* e2 = cell_entities[j];
+	for(int cy = 0; cy < NumCellY; ++cy)
+	{
+		for(int cx = 0; cx < NumCellX; ++cx)
+		{
+			int baseCell = cy * NumCellX + cx;
+			int countA = state->cell_counts[baseCell];
+			int* listA = state->cells[baseCell];
 
-                if(!itu_lib_overlaps_circle_circle(
-                    e1->position + e1->collider_offset, e1->collider_radius,
-                    e2->position + e2->collider_offset, e2->collider_radius))
-					continue;
-                
-				e1->sprite.tint = COLOR_RED;
-				e2->sprite.tint = COLOR_RED;
+			for(int n = 0; n < OFF_COUNT; ++n)
+			{
+				int nx = cx + OFF[n][0];
+				int ny = cy + OFF[n][1];
+				if(nx < 0 || ny < 0 || nx >= NumCellX || ny >= NumCellY) continue;
+				int cellB = ny * NumCellX + nx;
 
-				if(state->frame_collisions_count >= MAX_COLLISIONS)
+				if(cellB == baseCell)
 				{
-					SDL_Log("[WARNING] too many collisions!");
-					return;
+					// internal unordered pairs
+					if(countA < 2) continue;
+					for(int i = 0; i < countA - 1; ++i)
+					{
+						Entity* e1 = &state->entities[listA[i]];
+						for(int j = i + 1; j < countA; ++j)
+						{
+							Entity* e2 = &state->entities[listA[j]];
+
+							if(!itu_lib_overlaps_circle_circle(
+								e1->position + e1->collider_offset, e1->collider_radius,
+								e2->position + e2->collider_offset, e2->collider_radius))
+								continue;
+
+							e1->sprite.tint = COLOR_RED;
+							e2->sprite.tint = COLOR_RED;
+
+							if(state->frame_collisions_count >= MAX_COLLISIONS)
+							{
+								state->collisions_truncated = true;
+								continue; // keep scanning other pairs for diagnostics consistency
+							}
+
+							vec2f p1 = e1->position + e1->collider_offset;
+							vec2f p2 = e2->position + e2->collider_offset;
+							vec2f v = p2 - p1;
+							float l = length(v);
+							if(l <= 0.00001f) { v = vec2f{1,0}; l = 1.0f; }
+							float separation_vector = e1->collider_radius + e2->collider_radius - l;
+
+							int new_collision_idx = state->frame_collisions_count++;
+							state->frame_collisions[new_collision_idx].e1 = e1;
+							state->frame_collisions[new_collision_idx].e2 = e2;
+							state->frame_collisions[new_collision_idx].normal = v / l;
+							state->frame_collisions[new_collision_idx].separation = separation_vector;
+						}
+					}
 				}
+				else
+				{
+					int countB = state->cell_counts[cellB];
+					if(countA == 0 || countB == 0) continue;
+					int* listB = state->cells[cellB];
 
-				vec2f v = (e2->position + e2->collider_offset) - (e1->position + e1->collider_offset);
-				float l = length(v);
-				float separation_vector = e1->collider_radius + e2->collider_radius - l;
-				int new_collision_idx = state->frame_collisions_count++;
+					for(int ia = 0; ia < countA; ++ia)
+					{
+						Entity* e1 = &state->entities[listA[ia]];
+						for(int ib = 0; ib < countB; ++ib)
+						{
+							Entity* e2 = &state->entities[listB[ib]];
+							if(!itu_lib_overlaps_circle_circle(
+								e1->position + e1->collider_offset, e1->collider_radius,
+								e2->position + e2->collider_offset, e2->collider_radius))
+								continue;
 
-				state->frame_collisions[new_collision_idx].e1 = e1;
-				state->frame_collisions[new_collision_idx].e2 = e2;
-				state->frame_collisions[new_collision_idx].normal = v / l;
-				state->frame_collisions[new_collision_idx].separation = separation_vector;
-                
-            }
-        }
-    }
+							e1->sprite.tint = COLOR_RED;
+							e2->sprite.tint = COLOR_RED;
+
+							if(state->frame_collisions_count >= MAX_COLLISIONS)
+							{
+								state->collisions_truncated = true;
+								continue; // do not early out entire pass
+							}
+							vec2f p1 = e1->position + e1->collider_offset;
+							vec2f p2 = e2->position + e2->collider_offset;
+							vec2f v = p2 - p1;
+							float l = length(v);
+							if(l <= 0.00001f) { v = vec2f{1,0}; l = 1.0f; }
+							float separation_vector = e1->collider_radius + e2->collider_radius - l;
+
+							int new_collision_idx = state->frame_collisions_count++;
+							state->frame_collisions[new_collision_idx].e1 = e1;
+							state->frame_collisions[new_collision_idx].e2 = e2;
+							state->frame_collisions[new_collision_idx].normal = v / l;
+							state->frame_collisions[new_collision_idx].separation = separation_vector;
+						}
+					}
+				}
+			}
+		}
+	}
 }
 static void collision_separate(GameState* state)
 {
@@ -250,6 +361,17 @@ static void collision_separate(GameState* state)
 		vec2f sep = entity_collision_info.normal * entity_collision_info.separation / 2;
 		entity_collision_info.e1->position -= sep;
 		entity_collision_info.e2->position += sep;
+	}
+
+	// Clamp to world after resolution (simple world bounds 0..WINDOW_W/H)
+	for(int i = 0; i < state->entities_alive_count; ++i)
+	{
+		Entity* e = &state->entities[i];
+		float r = e->collider_radius;
+		if(e->position.x < r) e->position.x = r;
+		if(e->position.x > WINDOW_W - r) e->position.x = WINDOW_W - r;
+		if(e->position.y < r) e->position.y = r;
+		if(e->position.y > WINDOW_H - r) e->position.y = WINDOW_H - r;
 	}
 }
 
@@ -277,6 +399,7 @@ static void game_reset(SDLContext* context, GameState* state)
 {
 	SDL_memset(state->entities, 0, ENTITY_COUNT * sizeof(Entity));
 	state->entities_alive_count = 0;
+	state->rng_state = 0xC001C0DEu; // deterministic seed
 
 	// entities
 	Entity* player = entity_create(state);
@@ -294,29 +417,27 @@ static void game_reset(SDLContext* context, GameState* state)
 	player->collider_radius = COLLISION_RADIUS;
 	state->player = player;
 
-	int rows = (int)sqrt(ENTITY_COUNT);
-	int cols = (ENTITY_COUNT + rows - 1) / rows;
-
-	// grid pattern
-	for(int i = 0; i < ENTITY_COUNT; ++i) // limit to 4096 for now
+	// Pseudo-random uniform spawn (deterministic). Spread all entities, avoid wrapping artifact.
+	int toSpawn = ENTITY_COUNT - 1; // excluding player
+	for(int i = 0; i < toSpawn; ++i)
 	{
 		Entity* entity = entity_create(state);
-		if(!entity)
-		{
-			SDL_Log("[WARNING] too many entity spawned!");
-			break;
-		}
-		
-		vec2f coords = vec2f{ 1.5f + i % rows, 1.5f + i / cols};
+		if(!entity) break;
+		float rx = rng_next01(state); // [0,1)
+		float ry = rng_next01(state);
+		// Keep entities away from very edge by one radius to reduce immediate clamping
+		float x = COLLISION_RADIUS + rx * (context->window_w - 2 * COLLISION_RADIUS);
+		float y = COLLISION_RADIUS + ry * (context->window_h - 2 * COLLISION_RADIUS);
+		// Small jitter around position (already random, but can help future deterministic patterns)
 		entity->size = vec2f{ 32, 32 };
-		entity->position = mul_element_wise(entity->size,  coords);
+		entity->position = vec2f{ x, y };
 		entity->sprite = {
 			.texture = state->atlas,
 			.rect = SDL_FRect{ 0, 4*128, 128, 128 },
 			.tint = COLOR_WHITE,
 			.pivot = vec2f{ 0.5f, 0.5f }
 		};
-		entity->collider_offset = vec2f{0,0};	
+		entity->collider_offset = vec2f{0,0};
 		entity->collider_radius = COLLISION_RADIUS;
 	}
 
@@ -481,7 +602,7 @@ int main(void)
 #ifdef ENABLE_DIAGNOSTICS
 		{
 			SDL_SetRenderDrawColor(context.renderer, 0x0, 0x00, 0x00, 0xCC);
-			SDL_FRect rect = SDL_FRect{ 5, 5, 225, 65 };
+			SDL_FRect rect = SDL_FRect{ 5, 5, 300, 110 };
 			SDL_RenderFillRect(context.renderer, &rect);
 			SDL_SetRenderDrawColor(context.renderer, 0xFF, 0xFF, 0xFF, 0xFF);
 			SDL_RenderDebugTextFormat(context.renderer, 10, 10, "work: %9.6f ms/f", (float)elapsed_work  / (float)MILLIS(1));
@@ -490,6 +611,9 @@ int main(void)
 			SDL_RenderDebugTextFormat(context.renderer, 10, 40, "[F1]  collisions        %s", DEBUG_separate_collisions   ? " ON" : "OFF");
 			SDL_RenderDebugTextFormat(context.renderer, 10, 50, "[F2]  render colliders  %s", DEBUG_render_colliders      ? " ON" : "OFF");
 			SDL_RenderDebugTextFormat(context.renderer, 10, 60, "[F3]  render tex border %s", DEBUG_render_texture_border ? " ON" : "OFF");
+			SDL_RenderDebugTextFormat(context.renderer, 10, 70, "grid avg/max: %.1f / %d", state.dbg_avg_cell_count, state.dbg_max_cell_count);
+			SDL_RenderDebugTextFormat(context.renderer, 10, 80, "grid overflow: %d", state.dbg_overflow_count);
+			SDL_RenderDebugTextFormat(context.renderer, 10, 90, "collisions: %d%s", state.frame_collisions_count, state.collisions_truncated?" (TRUNC)":"");
 		}
 #endif
 
