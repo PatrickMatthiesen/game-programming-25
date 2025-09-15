@@ -1,7 +1,9 @@
 #ifndef ITU_COMMON_HPP
 #define ITU_COMMON_HPP
 
-#include <SDL3/SDL_log.h> // SDL_Log(), SDL_GetError(), SDL_assert
+#include <SDL3/SDL_log.h>    // SDL_Log()
+#include <SDL3/SDL_error.h>  // SDL_Error()
+#include <SDL3/SDL_stdinc.h> // SDL_assert(), all math functions and macros
 
 // *******************************************************************
 // common macros
@@ -43,7 +45,7 @@
 // arbitrary threshold for floating point equality comparison (to avoid approximation errors)
 //
 // NOTE: this may be too big for certain game designs. Change this if you need
-#define FLOAT_EPSILON 0.001f 
+#define FLOAT_EPSILON 0.001f
 
 // *******************************************************************
 // vector math
@@ -107,10 +109,10 @@ struct vec2f
 
 #define VEC2F_ZERO  vec2f {  0.0f,  0.0f }
 #define VEC2F_ONE   vec2f {  1.0f,  1.0f }
-#define VEC2F_UP    vec2f{  0.0f,  1.0f }
-#define VEC2F_DOWN  vec2f{  0.0f, -1.0f }
-#define VEC2F_LEFT  vec2f{ -1.0f,  0.0f }
-#define VEC2F_RIGHT vec2f{  1.0f,  0.0f }
+#define VEC2F_UP    vec2f {  0.0f,  1.0f }
+#define VEC2F_DOWN  vec2f {  0.0f, -1.0f }
+#define VEC2F_LEFT  vec2f { -1.0f,  0.0f }
+#define VEC2F_RIGHT vec2f {  1.0f,  0.0f }
 
 inline vec2f mul_element_wise(vec2f a, vec2f b)
 {
@@ -126,7 +128,7 @@ inline float dot(vec2f a, vec2f b)
 }
 
 // NOTE cross product is not really defined in 2D, this is just a hack to check some useful properties
-// - clockwise/conter-clockwise rotaiton
+// - clockwise/conter-clockwise rotation
 // - position left/right of a line
 // (mathematically, we are simplifying the formula of a 3D cross product where
 // - both z components of the inputs are 0
@@ -192,13 +194,23 @@ inline bool check_equality(vec2f a, vec2f b)
 inline vec2f clamp(vec2f a, float len)
 {
 	vec2f ret = a;
-	float len_curr = length(a);
-	if(len < len_curr)
+	float len_sq = len * len;
+	float len_curr_sq = length_sq(a);
+	if(len_sq < len_curr_sq)
 	{
-		float shirk_factor = len / len_curr;
-		ret = ret * len;
+		float shirk_factor = len / length(a);
+		ret = ret * shirk_factor;
 	}
 	return ret;
+
+	// vec2f ret = a;
+	// float len_curr = length(a);
+	// if(len < len_curr)
+	// {
+	// 	float shirk_factor = len / len_curr;
+	// 	ret = ret * shirk_factor;
+	// }
+	// return ret;
 }
 
 inline vec2f rotate(vec2f a, float angle)
@@ -237,16 +249,16 @@ struct color
 	}
 };
 
-#define COLOR_RED    { 1.0f, 0.0f, 0.0f, 1.0f }
-#define COLOR_GREEN  { 0.0f, 1.0f, 0.0f, 1.0f }
-#define COLOR_BLUE   { 0.0f, 0.0f, 1.0f, 1.0f }
-#define COLOR_YELLOW { 1.0f, 1.0f, 0.0f, 1.0f }
-#define COLOR_BLACK  { 0.0f, 0.0f, 0.0f, 1.0f }
-#define COLOR_DARK   { 0.1f, 0.1f, 0.1f, 1.0f }
-#define COLOR_WHITE  { 1.0f, 1.0f, 1.0f, 1.0f }
+#define COLOR_RED    color { 1.0f, 0.0f, 0.0f, 1.0f }
+#define COLOR_GREEN  color { 0.0f, 1.0f, 0.0f, 1.0f }
+#define COLOR_BLUE   color { 0.0f, 0.0f, 1.0f, 1.0f }
+#define COLOR_YELLOW color { 1.0f, 1.0f, 0.0f, 1.0f }
+#define COLOR_BLACK  color { 0.0f, 0.0f, 0.0f, 1.0f }
+#define COLOR_DARK   color { 0.1f, 0.1f, 0.1f, 1.0f }
+#define COLOR_WHITE  color { 1.0f, 1.0f, 1.0f, 1.0f }
 
-#define COLOR_TRANSPARENT_WHITE  { 1.0f, 1.0f, 1.0f, 0.0f }
-#define COLOR_TRANSPARENT_BLACK  { 0.0f, 0.0f, 0.0f, 0.0f }
+#define COLOR_TRANSPARENT_WHITE color { 1.0f, 1.0f, 1.0f, 0.0f }
+#define COLOR_TRANSPARENT_BLACK color { 0.0f, 0.0f, 0.0f, 0.0f }
 
 inline color color_saturate(color c)
 {
