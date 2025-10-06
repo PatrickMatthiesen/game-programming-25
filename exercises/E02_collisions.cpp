@@ -167,7 +167,7 @@ static int get_cell(float x, float y)
 		+ SDL_clamp((int)(y / CollisionZoneSize), 0, NumCellY - 1) * NumCellX; // y)
 }
 
-static void partition_entities(GameState* state, SDLContext* context)
+static void partition_entities(GameState* state, MySDLContext* context)
 {
 	 // Clear cell counts
     for(int i=0; i < NumCells; ++i) state->cell_counts[i] = 0;
