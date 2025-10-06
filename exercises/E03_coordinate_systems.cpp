@@ -1,24 +1,77 @@
-#define TEXTURE_PIXELS_PER_UNIT 128
-#define CAMERA_PIXELS_PER_UNIT  128
+#define PIXELS_PER_UNIT 16		   // The size of one tile in the texture atlas (in pixels)
+#define TEXTURE_PIXELS_PER_UNIT 16 // How many pixels in the texture correspond to one world unit
+#define CAMERA_ZOOM_FACTOR 4	   // How many times to magnify the base resolution. 1 = no zoom.
+#define ZOOM_SPEED 1.0f			   // How fast to zoom in and out
 
 #include <itu_unity_include.hpp>
 
 #define ENABLE_DIAGNOSTICS
 
 #define TARGET_FRAMERATE SECONDS(1) / 60
-#define WINDOW_W         800
-#define WINDOW_H         600
-
+#define WINDOW_W 800
+#define WINDOW_H 600
 
 #define ENTITY_COUNT 4096
 
-#define TILEMAP_W 12
-#define TILEMAP_H 11
-#define PIXELS_PER_UNIT 16
-
-
 bool DEBUG_render_textures = true;
 bool DEBUG_render_outlines = true;
+bool DEBUG_render_mouse_info = true;
+
+// atlas (tileset) layout in the texture image (columns x rows)
+#define ATLAS_COLS 12
+#define ATLAS_ROWS 11
+
+// tilemap (world) dimensions
+#define TILEMAP_W 20
+#define TILEMAP_H 20
+
+// Map built with the provided tile indices (examples used: 3=cobblestone_floor, 6=magic_pool_green, 35=platform_circular,
+// 96=pillar_top, 100=carpet_small, 98=torch_lit, 13=wood_plank_border, 19=wooden_crate_top, 101=table_top, 102=chair, 31=chest_closed)
+#include <stdint.h>
+
+// 20x20 outdoor ruins/courtyard style map
+static uint16_t tilemap_template[20 * 20] = {
+    // Row 0
+    14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14,
+    // Row 1
+    14, 48, 48, 48, 48, 14, 48, 48, 48, 48, 48, 48, 48, 48, 14, 48, 48, 48, 48, 14,
+    // Row 2
+    14, 19, 26, 48, 48, 14, 19, 34, 48, 48, 48, 48, 75, 19, 14, 19, 27, 19, 28, 14,
+    // Row 3
+    14, 48, 48, 48, 48, 22, 48, 48, 19, 14, 14, 14, 14, 14, 14, 48, 48, 48, 48, 14,
+    // Row 4
+    14, 19, 39, 36, 37, 23, 38, 40, 19, 14, 80, 80, 82, 80, 14, 19, 41, 19, 42, 14,
+    // Row 5
+    14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 80, 84, 82, 85, 14, 14, 14, 22, 14, 14,
+    // Row 6
+    14, 48, 48, 48, 48, 48, 48, 48, 48, 14, 80, 80, 88, 80, 14, 48, 48, 23, 19, 14,
+    // Row 7
+    14, 19, 63, 19, 64, 19, 65, 48, 48, 14, 14, 14, 14, 14, 14, 19, 29, 19, 29, 14,
+    // Row 8
+    14, 48, 48, 48, 48, 48, 48, 48, 48, 22, 48, 48, 48, 48, 23, 48, 48, 48, 48, 14,
+    // Row 9
+    14, 14, 14, 14, 48, 48, 19, 14, 14, 23, 19, 98, 48, 48, 22, 14, 14, 14, 14, 14,
+    // Row 10
+    14, 80, 80, 14, 19, 66, 19, 14, 80, 80, 48, 48, 48, 48, 80, 80, 14, 82, 84, 14,
+    // Row 11
+    14, 80, 82, 14, 19, 67, 19, 14, 80, 82, 48, 48, 48, 48, 80, 82, 14, 80, 80, 14,
+    // Row 12
+    14, 14, 14, 14, 48, 48, 19, 14, 14, 14, 14, 22, 23, 14, 14, 14, 14, 14, 14, 14,
+    // Row 13
+    14, 48, 48, 48, 48, 35, 48, 48, 48, 48, 19, 23, 22, 48, 48, 48, 48, 48, 48, 14,
+    // Row 14
+    14, 19, 56, 19, 61, 19, 58, 48, 48, 48, 48, 48, 48, 48, 48, 19, 57, 19, 62, 14,
+    // Row 15
+    14, 14, 14, 14, 14, 14, 14, 14, 48, 48, 48, 48, 48, 48, 14, 14, 14, 14, 14, 14,
+    // Row 16
+    14, 80, 80, 80, 80, 80, 80, 14, 19, 43, 19, 44, 48, 48, 14, 80, 80, 80, 80, 14,
+    // Row 17
+    14, 80, 88, 80, 89, 80, 82, 14, 48, 48, 48, 48, 48, 48, 14, 80, 88, 82, 80, 14,
+    // Row 18
+    14, 80, 80, 80, 80, 80, 80, 14, 19, 71, 19, 73, 19, 74, 14, 80, 80, 80, 80, 14,
+    // Row 19
+    14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14
+};
 
 struct Entity
 {
@@ -29,16 +82,16 @@ struct Entity
 struct Tilemap
 {
 	int w, h;
-	uint16_t* tiles; // tile indices
+	uint16_t *tiles; // tile indices
 };
 
 struct GameState
 {
 	// shortcut references
-	Entity* player;
+	Entity *player;
 
 	// game-allocated memory
-	Entity* entities;
+	Entity *entities;
 	int entities_alive_count;
 	Tilemap tilemap;
 	vec2f mouse_world;
@@ -48,44 +101,26 @@ struct GameState
 	int player_tile_y;
 
 	// SDL-allocated structures
-	SDL_Texture* atlas;
-	SDL_Texture* bg;
+	SDL_Texture *atlas;
+	SDL_Texture *bg;
 };
 
-struct Int16Vec2 {
-    int x;  // These occupy separate
-    int y;  // memory locations
-};
-
-static uint16_t tilemap_tiles_for_debug[256] = {
-	1, 2, 3, 4, 5, 6, 7, 8, 9,10,11,12,13,14,15,16,
-	17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,
-	33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,
-	49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,
-	65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,
-	81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,
-	97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,
-	113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,
-	129,130,131,132,133,134,135,136,137,138,139,140,141,142,143,144,
-	145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,
-	161,162,163,164,165,166,167,168,169,170,171,172,173,174,175,176,
-	177,178,179,180,181,182,183,184,185,186,187,188,189,190,191,192,
-	193,194,195,196,197,198,199,200,201,202,203,204,205,206,207,208,
-	209,210,211,212,213,214,215,216,217,218,219,220,221,222,223,224,
-	225,226,227,228,229,230,231,232,233,234,235,236,237,238,239,240,
-	241,242,243,244,245,246,247,248,249,250,251,252,253,254,255,256
-};
-
-static Entity* entity_create(GameState* state)
+struct Int16Vec2
 {
-	if(!(state->entities_alive_count < ENTITY_COUNT))
+	int x; // These occupy separate
+	int y; // memory locations
+};
+
+static Entity *entity_create(GameState *state)
+{
+	if (!(state->entities_alive_count < ENTITY_COUNT))
 		// NOTE: this might as well be an assert, if we don't have a way to recover/handle it
 		return NULL;
 
 	// // concise version
-	//return &state->entities[state->entities_alive_count++];
+	// return &state->entities[state->entities_alive_count++];
 
-	Entity* ret = &state->entities[state->entities_alive_count];
+	Entity *ret = &state->entities[state->entities_alive_count];
 	++state->entities_alive_count;
 	return ret;
 }
@@ -93,39 +128,39 @@ static Entity* entity_create(GameState* state)
 // NOTE: this only works if nobody holds references to other entities!
 //       if that were the case, we couldn't swap them around.
 //       We will see in later lectures how to handle this kind of problems
-static void entity_destroy(GameState* state, Entity* entity)
+static void entity_destroy(GameState *state, Entity *entity)
 {
 	// NOTE: here we want to fail hard, nobody should pass us a pointer not gotten from `entity_create()`
-	SDL_assert(entity < state->entities ||entity > state->entities + ENTITY_COUNT);
+	SDL_assert(entity < state->entities || entity > state->entities + ENTITY_COUNT);
 
 	--state->entities_alive_count;
 	*entity = state->entities[state->entities_alive_count];
 }
 
-static void tilemap_alloc(GameState* state, int w, int h)
-{
-    state->tilemap.w = w;
-    state->tilemap.h = h;
-    state->tilemap.tiles = (uint16_t *)SDL_calloc(w * h, sizeof(uint16_t ));
-    SDL_assert(state->tilemap.tiles);
-}
 
-static void tilemap_build_pattern(GameState* state)
-{
-	// simple pattern for testing
-	// state->tilemap.tiles = tilemap_tiles_for_debug;
-	// return;
 
-    for(int y=0; y < state->tilemap.h; ++y)
-        for(int x=0; x < state->tilemap.w; ++x) {
-            int idx = y * state->tilemap.w + x;
-            state->tilemap.tiles[idx] = (x + y);
-		}
-}
-
-static int16_t coords_to_tilemap_index(GameState* state, int x, int y)
+static int16_t coords_to_tilemap_index(GameState *state, int x, int y)
 {
 	return y * state->tilemap.w + x;
+}
+
+static void tilemap_build_pattern(GameState *state)
+{
+	// simple pattern for testing
+    // copy the static template into the allocated tile buffer
+    int totalTiles = TILEMAP_W * TILEMAP_H;
+    SDL_assert(state->tilemap.tiles); // ensure allocation succeeded
+    SDL_memcpy(state->tilemap.tiles, tilemap_template, totalTiles * sizeof(uint16_t));
+    return;
+
+	for (int y = 0; y < state->tilemap.h; ++y)
+	{
+		for (int x = 0; x < state->tilemap.w; ++x)
+		{
+			int idx = coords_to_tilemap_index(state, x, y);
+			state->tilemap.tiles[idx] = idx;
+		}
+	}
 }
 
 static Int16Vec2 tilemap_index_to_coords(int width, int idx)
@@ -136,57 +171,88 @@ static Int16Vec2 tilemap_index_to_coords(int width, int idx)
 	return ret;
 }
 
-static void tilemap_render(SDLContext* context, GameState* state)
+vec2f world_to_tile(const Tilemap map, vec2f world)
 {
-    for(int y = 0; y < state->tilemap.h; ++y)
-    {
-        for(int x = 0; x < state->tilemap.w; ++x)
-        {
-            int idx = y * state->tilemap.w + x;
-            int tile_index = state->tilemap.tiles[idx];
-
-            Sprite s;
-			Int16Vec2 coords = tilemap_index_to_coords(state->tilemap.w, tile_index);
-			SDL_FRect tile_atlas_rect = itu_lib_sprite_get_rect(coords.x, coords.y, PIXELS_PER_UNIT, PIXELS_PER_UNIT);
-            itu_lib_sprite_init(&s, state->atlas, tile_atlas_rect);
-            s.pivot = VEC2F_ZERO;
-
-            Transform t{};
-            t.position.x = (float)x;
-            t.position.y = (float)y;
-            t.scale = VEC2F_ONE;
-            t.rotation = 0;
-
-            bool is_mouse  = (x == state->mouse_tile_x  && y == state->mouse_tile_y);
-            bool is_player = (x == state->player_tile_x && y == state->player_tile_y);
-
-#ifdef SPRITE_HAS_COLOR   // (Only if your Sprite defines a 'color' member)
-            if(is_mouse){
-                s.color.r = 255; s.color.g = 180; s.color.b = 180;
-            }else if(is_player){
-                s.color.r = 180; s.color.g = 255; s.color.b = 180;
-            }
-            itu_lib_sprite_render(context, &s, &t);
-#else
-            itu_lib_sprite_render(context, &s, &t);
-            if(is_mouse || is_player){
-                SDL_FRect r = rect_global_to_screen(&context->camera,
-                    SDL_FRect{ t.position.x, t.position.y, 1.0f, 1.0f });
-                if(is_mouse) SDL_SetRenderDrawColor(context->renderer, 255, 120, 120, 90);
-                else         SDL_SetRenderDrawColor(context->renderer, 120, 255, 120, 90);
-                SDL_RenderFillRect(context->renderer, &r);
-            }
-#endif
-            if(DEBUG_render_outlines)
-                itu_lib_sprite_render_debug(context, &s, &t);
-        }
-    }
+	float tx = SDL_floorf(world.x);
+	float ty = SDL_floorf(world.y);
+	tx = SDL_clamp(tx, 0, map.w - 1);
+	ty = SDL_clamp(ty, 0, map.h - 1);
+	return vec2f{tx, ty};
 }
 
-static void game_init(SDLContext* context, GameState* state)
+static void tilemap_render(SDLContext *context, GameState *state)
+{
+	// const int offset = -0.5f; // center the pattern a bit
+
+	for (int y = 0; y < state->tilemap.h; ++y)
+	{
+		for (int x = 0; x < state->tilemap.w; ++x)
+		{
+			int idx = y * state->tilemap.w + x;
+			int tile_index = state->tilemap.tiles[idx];
+
+            // atlas uses ATLAS_COLS per row (independent from tilemap width)
+            Int16Vec2 coords = tilemap_index_to_coords(ATLAS_COLS, tile_index);
+			SDL_FRect tile_atlas_rect = itu_lib_sprite_get_rect(coords.x, coords.y, TEXTURE_PIXELS_PER_UNIT, TEXTURE_PIXELS_PER_UNIT);
+
+			Sprite s;
+			itu_lib_sprite_init(&s, state->atlas, tile_atlas_rect);
+			s.pivot = VEC2F_ZERO;
+
+			Transform t{};
+			t.position.x = (float)x; // offset;
+			t.position.y = (float)y; // offset;
+			t.scale = VEC2F_ONE;
+			t.rotation = 0;
+
+			bool is_mouse = (x == state->mouse_tile_x && y == state->mouse_tile_y);
+			bool is_player = (x == state->player_tile_x && y == state->player_tile_y);
+
+#ifdef SPRITE_HAS_COLOR // (Only if your Sprite defines a 'color' member)
+			if (is_mouse)
+			{
+				s.color.r = 255;
+				s.color.g = 180;
+				s.color.b = 180;
+			}
+			else if (is_player)
+			{
+				s.color.r = 180;
+				s.color.g = 255;
+				s.color.b = 180;
+			}
+			itu_lib_sprite_render(context, &s, &t);
+#else
+			itu_lib_sprite_render(context, &s, &t);
+			if (is_mouse || is_player)
+			{
+				SDL_FRect r = rect_global_to_screen(context,
+													SDL_FRect{t.position.x, t.position.y, 1.0f, 1.0f});
+				if (is_mouse)
+					SDL_SetRenderDrawColor(context->renderer, 255, 120, 120, 90);
+				else
+					SDL_SetRenderDrawColor(context->renderer, 120, 255, 120, 90);
+				SDL_RenderFillRect(context->renderer, &r);
+			}
+#endif
+			if (DEBUG_render_outlines)
+				itu_lib_sprite_render_debug(context, &s, &t);
+		}
+	}
+}
+
+static void tilemap_alloc(GameState *state, int w, int h)
+{
+	state->tilemap.w = w;
+	state->tilemap.h = h;
+	state->tilemap.tiles = (uint16_t *)SDL_calloc(w * h, sizeof(uint16_t));
+	SDL_assert(state->tilemap.tiles);
+}
+
+static void game_init(SDLContext *context, GameState *state)
 {
 	// allocate memory
-	state->entities = (Entity*)SDL_calloc(ENTITY_COUNT, sizeof(Entity));
+	state->entities = (Entity *)SDL_calloc(ENTITY_COUNT, sizeof(Entity));
 	SDL_assert(state->entities);
 
 	// TODO allocate space for tile info (when we'll load those from file)
@@ -195,27 +261,17 @@ static void game_init(SDLContext* context, GameState* state)
 
 	// texture atlases
 	state->atlas = texture_create(context, "data/kenney/tiny_dungeon_packed.png", SDL_SCALEMODE_NEAREST);
-	state->bg    = texture_create(context, "data/kenney/prototype_texture_dark/texture_13.png", SDL_SCALEMODE_LINEAR);
+	state->bg = texture_create(context, "data/kenney/prototype_texture_dark/texture_13.png", SDL_SCALEMODE_LINEAR);
 }
 
-static void game_reset(SDLContext* context, GameState* state)
+static void game_reset(SDLContext *context, GameState *state)
 {
 	state->entities_alive_count = 0;
-	
-	// entities
-	{
-		Entity* bg = entity_create(state);
-		SDL_FRect sprite_rect = SDL_FRect{ 0, 0, 1024, 1024};
-		itu_lib_sprite_init(
-			&bg->sprite,
-			state->bg,
-			itu_lib_sprite_get_rect(0, 0, 1024, 1024)
-		);
-		bg->transform.scale = VEC2F_ONE;
-	}
-	
+
 	// reset tilemap
-	tilemap_build_pattern(state);
+	{
+		tilemap_build_pattern(state);
+	}
 
 	{
 		state->player = entity_create(state);
@@ -224,91 +280,101 @@ static void game_reset(SDLContext* context, GameState* state)
 		itu_lib_sprite_init(
 			&state->player->sprite,
 			state->atlas,
-			itu_lib_sprite_get_rect(1, 8, PIXELS_PER_UNIT, PIXELS_PER_UNIT)
-		);
+			itu_lib_sprite_get_rect(1, 8, TEXTURE_PIXELS_PER_UNIT, TEXTURE_PIXELS_PER_UNIT));
 
 		// raise sprite a bit, so that the position concides with the center of the image
 		state->player->sprite.pivot.y = 0.3f;
 	}
 }
 
-static void game_update(SDLContext* context, GameState* state)
+static vec2f vec2f_normalize(vec2f v)
+{
+	float len = SDL_sqrtf(v.x * v.x + v.y * v.y);
+	if (len != 0.0f)
+		return v / len;
+	return v;
+}
+
+static void game_update(SDLContext *context, GameState *state)
 {
 	{
-		const float player_speed = PIXELS_PER_UNIT / 2;
+		const float player_speed = 5.0f; // 5 tiles per second
 
-		Entity* entity = state->player;
-		vec2f mov = { 0 };
-		if(context->btn_isdown_up)
-			mov.y += player_speed;
-		if(context->btn_isdown_down)
-			mov.y -= player_speed;
-		if(context->btn_isdown_left)
-			mov.x -= player_speed;
-		if(context->btn_isdown_right)
-			mov.x += player_speed;
-	
-		entity->transform.position = entity->transform.position + mov * (context->delta);
+		Entity *entity = state->player;
+		vec2f mov = {0};
+		if (context->btn_isdown_up)
+			mov.y += 1.0f;
+		if (context->btn_isdown_down)
+			mov.y -= 1.0f;
+		if (context->btn_isdown_left)
+			mov.x -= 1.0f;
+		if (context->btn_isdown_right)
+			mov.x += 1.0f;
+
+		if (mov.x != 0.0f || mov.y != 0.0f)
+		{
+			mov = vec2f_normalize(mov);
+			entity->transform.position = entity->transform.position + mov * player_speed * context->delta;
+		}
 
 		// camera follows player
 		context->camera_active->world_position = entity->transform.position;
+		context->camera_active->zoom += context->mouse_scroll * ZOOM_SPEED * context->delta;
+		// avoid zero/negative zoom (which mirrors) and limit extremes
+		context->camera_active->zoom = SDL_clamp(context->camera_active->zoom, 0.05f, 16.0f);
 	}
 	// mouse position
 	{
-        vec2f mouse_screen = context->mouse_pos;
-        vec2f mouse_world  = point_screen_to_global(&context->camera, mouse_screen);
-        state->mouse_world = mouse_world;
+		vec2f mouse_screen = context->mouse_pos;
+		vec2f mouse_world = point_screen_to_global(context, mouse_screen);
+		state->mouse_world = mouse_world;
 
-        state->mouse_tile_x = (int)SDL_floorf(mouse_world.x);
-        state->mouse_tile_y = (int)SDL_floorf(mouse_world.y);
+		state->mouse_tile_x = (int)SDL_floorf(mouse_world.x);
+		state->mouse_tile_y = (int)SDL_floorf(mouse_world.y);
 
-        state->player_tile_x = (int)SDL_floorf(state->player->transform.position.x);
-        state->player_tile_y = (int)SDL_floorf(state->player->transform.position.y);
+		state->player_tile_x = (int)SDL_floorf(state->player->transform.position.x);
+		state->player_tile_y = (int)SDL_floorf(state->player->transform.position.y);
 
-        // clamp (avoid going outside tilemap)
-        if(state->mouse_tile_x < 0 || state->mouse_tile_x >= state->tilemap.w ||
-           state->mouse_tile_y < 0 || state->mouse_tile_y >= state->tilemap.h)
-        {
-            // mark as invalid
-            state->mouse_tile_x = state->mouse_tile_y = -1;
-        }
+		// clamp (avoid going outside tilemap)
+		if (state->mouse_tile_x < 0 || state->mouse_tile_x >= state->tilemap.w ||
+			state->mouse_tile_y < 0 || state->mouse_tile_y >= state->tilemap.h)
+		{
+			// mark as invalid
+			state->mouse_tile_x = state->mouse_tile_y = -1;
+		}
 
-        SDL_RenderDebugTextFormat(context->renderer, 10, 100, "mouse screen: %7.2f %7.2f", mouse_screen.x, mouse_screen.y);
-        SDL_RenderDebugTextFormat(context->renderer, 10, 110, "mouse world : %7.2f %7.2f", mouse_world.x, mouse_world.y);
-        SDL_RenderDebugTextFormat(context->renderer, 10, 120, "mouse tile  : %3d %3d", state->mouse_tile_x, state->mouse_tile_y);
-        SDL_RenderDebugTextFormat(context->renderer, 10, 130, "player tile : %3d %3d", state->player_tile_x, state->player_tile_y);
+		// // debug window
+		// SDL_SetRenderDrawColor(context->renderer, 0xFF, 0x00, 0xFF, 0xff);
+		// SDL_RenderRect(context->renderer, NULL);
 	}
 }
 
-static void game_render(SDLContext* context, GameState* state)
+static void game_render(SDLContext *context, GameState *state)
 {
 	tilemap_render(context, state);
 
-	for(int i = 0; i < state->entities_alive_count; ++i)
+	for (int i = 0; i < state->entities_alive_count; ++i)
 	{
-		Entity* entity = &state->entities[i];
+		Entity *entity = &state->entities[i];
 		// render texture
 		SDL_FRect rect_src = entity->sprite.rect;
 		SDL_FRect rect_dst;
 
-		if(DEBUG_render_textures)
+		if (DEBUG_render_textures)
 			itu_lib_sprite_render(context, &entity->sprite, &entity->transform);
 
-		if(DEBUG_render_outlines)
+		if (DEBUG_render_outlines)
 			itu_lib_sprite_render_debug(context, &entity->sprite, &entity->transform);
 	}
 
-	// debug window
-	SDL_SetRenderDrawColor(context->renderer, 0xFF, 0x00, 0xFF, 0xff);
-	SDL_RenderRect(context->renderer, NULL);
 }
 
 int main(void)
 {
 	bool quit = false;
-	SDL_Window* window;
-	SDLContext context = { 0 };
-	GameState  state   = { 0 };
+	SDL_Window *window;
+	SDLContext context = {0};
+	GameState state = {0};
 
 	context.window_w = WINDOW_W;
 	context.window_h = WINDOW_H;
@@ -329,8 +395,8 @@ int main(void)
 	context.camera_default.normalized_screen_size.y = 1.0f;
 	context.camera_default.normalized_screen_offset.x = 0.0f;
 	context.camera_default.normalized_screen_offset.y = 0.0f;
-	context.camera_default.zoom = 1;
-	context.camera_default.pixels_per_unit = CAMERA_PIXELS_PER_UNIT;
+	context.camera_default.zoom = 1.0f;
+	context.camera_default.pixels_per_unit = CAMERA_ZOOM_FACTOR * TEXTURE_PIXELS_PER_UNIT;
 
 	camera_set_active(&context, &context.camera_default);
 
@@ -346,43 +412,77 @@ int main(void)
 	SDL_GetCurrentTime(&walltime_frame_beg);
 	walltime_frame_end = walltime_frame_beg;
 
-	while(!quit)
+	while (!quit)
 	{
 		// input
 		SDL_Event event;
 		sdl_input_clear(&context);
-		while(SDL_PollEvent(&event))
+		while (SDL_PollEvent(&event))
 		{
-			switch(event.type)
+			switch (event.type)
 			{
-				case SDL_EVENT_QUIT:
-					quit = true;
-					break;
+			case SDL_EVENT_QUIT:
+				quit = true;
+				break;
 
-				case SDL_EVENT_KEY_DOWN:
-				case SDL_EVENT_KEY_UP:
-					switch(event.key.key)
-					{
-						case SDLK_W: sdl_input_key_process(&context, BTN_TYPE_UP, &event);        break;
-						case SDLK_A: sdl_input_key_process(&context, BTN_TYPE_LEFT, &event);      break;
-						case SDLK_S: sdl_input_key_process(&context, BTN_TYPE_DOWN, &event);      break;
-						case SDLK_D: sdl_input_key_process(&context, BTN_TYPE_RIGHT, &event);     break;
-						case SDLK_Q: sdl_input_key_process(&context, BTN_TYPE_ACTION_0, &event);  break;
-						case SDLK_E: sdl_input_key_process(&context, BTN_TYPE_ACTION_1, &event);  break;
-						case SDLK_SPACE: sdl_input_key_process(&context, BTN_TYPE_SPACE, &event); break;
-					}
-
-					// debug keys
-					if(event.key.down && !event.key.repeat)
-					{
-						switch(event.key.key)
-						{
-							case SDLK_TAB: game_reset(&context, &state); break;
-							case SDLK_F1: DEBUG_render_textures = !DEBUG_render_textures; break;
-							case SDLK_F2: DEBUG_render_outlines = !DEBUG_render_outlines; break;
-						}
-					}
+			case SDL_EVENT_KEY_DOWN:
+			case SDL_EVENT_KEY_UP:
+				switch (event.key.key)
+				{
+				case SDLK_W:
+					sdl_input_key_process(&context, BTN_TYPE_UP, &event);
 					break;
+				case SDLK_A:
+					sdl_input_key_process(&context, BTN_TYPE_LEFT, &event);
+					break;
+				case SDLK_S:
+					sdl_input_key_process(&context, BTN_TYPE_DOWN, &event);
+					break;
+				case SDLK_D:
+					sdl_input_key_process(&context, BTN_TYPE_RIGHT, &event);
+					break;
+				case SDLK_Q:
+					sdl_input_key_process(&context, BTN_TYPE_ACTION_0, &event);
+					break;
+				case SDLK_E:
+					sdl_input_key_process(&context, BTN_TYPE_ACTION_1, &event);
+					break;
+				case SDLK_SPACE:
+					sdl_input_key_process(&context, BTN_TYPE_SPACE, &event);
+					break;
+				}
+
+				// debug keys
+				if (event.key.down && !event.key.repeat)
+				{
+					switch (event.key.key)
+					{
+					case SDLK_TAB:
+						game_reset(&context, &state);
+						break;
+					case SDLK_F1:
+						DEBUG_render_textures = !DEBUG_render_textures;
+						break;
+					case SDLK_F2:
+						DEBUG_render_outlines = !DEBUG_render_outlines;
+						break;
+					case SDLK_F3:
+						DEBUG_render_mouse_info = !DEBUG_render_mouse_info;
+						break;
+					}
+				}
+				break;
+			case SDL_EVENT_MOUSE_BUTTON_DOWN:
+			case SDL_EVENT_MOUSE_BUTTON_UP:
+				sdl_input_mouse_button_process(&context, &event);
+				break;
+			case SDL_EVENT_MOUSE_MOTION:
+				context.mouse_pos.x = (float)event.motion.x / (float)context.zoom;
+				context.mouse_pos.y = (float)event.motion.y / (float)context.zoom;
+				break;
+			case SDL_EVENT_MOUSE_WHEEL:
+				context.mouse_scroll = event.wheel.y;
+				break;
 			}
 		}
 
@@ -396,24 +496,58 @@ int main(void)
 		SDL_GetCurrentTime(&walltime_work_end);
 		elapsed_work = walltime_work_end - walltime_frame_beg;
 
-		if(elapsed_work < TARGET_FRAMERATE)
+		if (elapsed_work < TARGET_FRAMERATE)
 			SDL_DelayNS(TARGET_FRAMERATE - elapsed_work);
 		SDL_GetCurrentTime(&walltime_frame_end);
 		elapsed_frame = walltime_frame_end - walltime_frame_beg;
-		
+
 #ifdef ENABLE_DIAGNOSTICS
 		{
 			SDL_SetRenderDrawColor(context.renderer, 0x0, 0x00, 0x00, 0xCC);
-			SDL_FRect rect = SDL_FRect{ 5, 5, 225, 55 };
+			SDL_FRect rect = SDL_FRect{5, 5, 225, 75};
 			SDL_RenderFillRect(context.renderer, &rect);
 
 			SDL_SetRenderDrawColor(context.renderer, 0xFF, 0xFF, 0xFF, 0xFF);
-			SDL_RenderDebugTextFormat(context.renderer, 10, 10, "work: %9.6f ms/f", (float)elapsed_work  / (float)MILLIS(1));
+			SDL_RenderDebugTextFormat(context.renderer, 10, 10, "work: %9.6f ms/f", (float)elapsed_work / (float)MILLIS(1));
 			SDL_RenderDebugTextFormat(context.renderer, 10, 20, "tot : %9.6f ms/f", (float)elapsed_frame / (float)MILLIS(1));
-			SDL_RenderDebugTextFormat(context.renderer, 10, 30, "[TAB] reset ");
-			SDL_RenderDebugTextFormat(context.renderer, 10, 40, "[F1]  render textures   %s", DEBUG_render_textures   ? " ON" : "OFF");
-			SDL_RenderDebugTextFormat(context.renderer, 10, 50, "[F2]  render outlines   %s", DEBUG_render_outlines   ? " ON" : "OFF");
+			SDL_RenderDebugTextFormat(context.renderer, 10, 30, "camera zoom = %f", context.camera_active->zoom);
+			SDL_RenderDebugTextFormat(context.renderer, 10, 40, "[TAB] reset ");
+			SDL_RenderDebugTextFormat(context.renderer, 10, 50, "[F1]  render textures   %s", DEBUG_render_textures ? " ON" : "OFF");
+			SDL_RenderDebugTextFormat(context.renderer, 10, 60, "[F2]  render outlines   %s", DEBUG_render_outlines ? " ON" : "OFF");
+			SDL_RenderDebugTextFormat(context.renderer, 10, 70, "[F3]  render mouse info %s", DEBUG_render_mouse_info ? " ON" : "OFF");
 		}
+
+		if (DEBUG_render_mouse_info)
+		{
+			// // TODO move info to mouse cursor coordinates
+			const vec2f debug_rect_size = vec2f{200, 74};
+			vec2f mouse_pos_screen = context.mouse_pos;
+			vec2f mouse_pos_world = point_screen_to_global(&context, mouse_pos_screen);
+			vec2f mouse_pos_camera = mouse_pos_world - context.camera_active->world_position;
+			vec2f mouse_pos_tilemap = world_to_tile(state.tilemap, mouse_pos_world);
+			vec2f debug_text_pos = mouse_pos_screen;
+			debug_text_pos.x -= debug_rect_size.x;
+
+			
+			const int tilex = state.mouse_tile_x;
+			const int tiley = state.mouse_tile_y;
+			const int tile_idx = (tilex >= 0 && tiley >= 0) ? state.tilemap.tiles[coords_to_tilemap_index(&state, tilex, tiley)] : -1;
+			
+			itu_lib_render_draw_rect_fill(context.renderer, debug_text_pos, debug_rect_size, color { 0.0f, 0.0f, 0.0f, 0.8f});
+			
+			SDL_SetRenderDrawColor(context.renderer, 0xFF, 0xFF, 0xFF, 0xFF);
+			SDL_RenderDebugText(context.renderer, debug_text_pos.x + 2, debug_text_pos.y + 02, "mouse pos");
+			SDL_RenderDebugTextFormat(context.renderer, debug_text_pos.x + 2, debug_text_pos.y + 12, "screen  : %6.2f, %6.2f", mouse_pos_screen.x, mouse_pos_screen.y);
+			SDL_RenderDebugTextFormat(context.renderer, debug_text_pos.x + 2, debug_text_pos.y + 22, "world   : %6.2f, %6.2f", mouse_pos_world.x, mouse_pos_world.y);
+			SDL_RenderDebugTextFormat(context.renderer, debug_text_pos.x + 2, debug_text_pos.y + 32, "camera  : %6.2f, %6.2f", mouse_pos_camera.x, mouse_pos_camera.y);
+			SDL_RenderDebugTextFormat(context.renderer, debug_text_pos.x + 2, debug_text_pos.y + 42, "tilemap : %6.0f, %6.0f", mouse_pos_tilemap.x, mouse_pos_tilemap.y);
+			SDL_RenderDebugTextFormat(context.renderer, debug_text_pos.x + 2, debug_text_pos.y + 52, "player t:	%6d,	%6d", state.player_tile_x, state.player_tile_y);
+			SDL_RenderDebugTextFormat(context.renderer, debug_text_pos.x + 2, debug_text_pos.y + 62, "tile idx:	%6d", tile_idx);
+		}
+
+		// debug window
+		SDL_SetRenderDrawColor(context.renderer, 0xFF, 0x00, 0xFF, 0xff);
+		SDL_RenderRect(context.renderer, NULL);
 #endif
 		// render
 		SDL_RenderPresent(context.renderer);
