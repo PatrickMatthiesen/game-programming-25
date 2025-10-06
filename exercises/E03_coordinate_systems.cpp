@@ -1,13 +1,7 @@
-#define STB_IMAGE_IMPLEMENTATION
-#define ITU_UNITY_BUILD
-
 #define TEXTURE_PIXELS_PER_UNIT 128
 #define CAMERA_PIXELS_PER_UNIT  128
 
-#include <SDL3/SDL.h>
-#include <itu_lib_engine.hpp>
-#include <itu_lib_render.hpp>
-#include <itu_lib_sprite.hpp>
+#include <itu_unity_include.hpp>
 
 #define ENABLE_DIAGNOSTICS
 
