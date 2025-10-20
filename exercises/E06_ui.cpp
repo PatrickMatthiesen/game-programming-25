@@ -71,7 +71,64 @@ struct EX6_Sprite9Patch
 };
 register_component(EX6_Sprite9Patch)
 
+struct EX6_UIImageButton
+{
+	
+};
+register_component(EX6_UIImageButton)
+
+
 static ITU_EntityId id_player;
+
+// ============================================================================================
+// Exercise methods
+// ============================================================================================
+
+void ex6_system_uiimagebutton(SDLContext* context, ITU_EntityId* entity_ids, int entity_ids_count)
+{
+	for(int i = 0; i < entity_ids_count; ++i)
+	{
+		ITU_EntityId id = entity_ids[i];
+		EX6_TransformScreen* transform = entity_get_data(id, EX6_TransformScreen);
+		EX6_Sprite9Patch*    sprite = entity_get_data(id, EX6_Sprite9Patch);
+		EX6_UIImageButton* button = entity_get_data(id, EX6_UIImageButton);
+		
+		vec2f sprite_size_world;
+		sprite_size_world.x = sprite->rect.w / TEXTURE_PIXELS_PER_UNIT;
+		sprite_size_world.y = sprite->rect.h / TEXTURE_PIXELS_PER_UNIT;
+		
+		vec2f mouse_pos_screen = point_window_to_screen(context, context->mouse_pos);
+
+		SDL_FRect rect_dst;
+		rect_dst.w = transform->scale.x * sprite_size_world.x;
+		rect_dst.h = transform->scale.y * sprite_size_world.y;
+		rect_dst.x = transform->position.x - sprite->pivot.x * rect_dst.w;
+		rect_dst.y = transform->position.y - sprite->pivot.y * rect_dst.h;
+		// rect_dst = rect_global_to_screen(context, rect_dst);
+
+
+		bool is_hovered =
+			(mouse_pos_screen.x >= rect_dst.x) &&
+			(mouse_pos_screen.x <= rect_dst.x + rect_dst.w) &&
+			(mouse_pos_screen.y >= rect_dst.y) &&
+			(mouse_pos_screen.y <= rect_dst.y + rect_dst.h);
+		if(is_hovered)
+		{
+			// outline render
+			sdl_set_render_draw_color(context, COLOR_YELLOW);
+			SDL_RenderRect(context->renderer, &rect_dst);
+
+			if(context->btn_isjustpressed_action0)
+			{
+				// button clicked
+				SDL_Log("Button clicked!");
+			}
+		}
+		// else {
+		// 	SDL_Log("mouse pos: %.1f, %.1f", mouse_pos_screen.x, mouse_pos_screen.y);
+		// }
+	}
+}
 
 
 // ============================================================================================
@@ -243,6 +300,7 @@ struct GameState
 	// SDL-allocated structures
 	SDL_Texture* atlas_space;
 	SDL_Texture* ui_healtbar;
+	SDL_Texture* ui_button;
 };
 
 void ex6_system_assign_player_target(SDLContext* context, ITU_EntityId* entity_ids, int entity_ids_count)
@@ -332,6 +390,7 @@ static void game_init(SDLContext* context, GameState* state)
 	// texture atlases
 	state->atlas_space = texture_create(context, "data/kenney/simpleSpace_tilesheet_2.png", SDL_SCALEMODE_LINEAR);
 	state->ui_healtbar = texture_create(context, "data/kenney/UI/bar_round_gloss_small_red.png", SDL_SCALEMODE_LINEAR);
+	state->ui_button   = texture_create(context, "data/kenney/UI/button_square_depth.png", SDL_SCALEMODE_LINEAR);
 
 	itu_sys_estorage_init(512);
 	itu_sys_physics_init(context);
@@ -341,6 +400,7 @@ static void game_init(SDLContext* context, GameState* state)
 	enable_component(EX6_HealthRenderer);
 	enable_component(EX6_TransformScreen);
 	enable_component(EX6_Sprite9Patch);
+	enable_component(EX6_UIImageButton);
 
 	add_component_debug_ui_render(EX6_PlayerData, ex6_debug_ui_render_playerdata);
 	add_component_debug_ui_render(EX6_Health, ex6_debug_ui_render_health);
@@ -357,6 +417,7 @@ static void game_init(SDLContext* context, GameState* state)
 	add_system(ex6_system_health                    , component_mask(EX6_HealthRenderer)  | component_mask(EX6_Sprite9Patch), 0);
 	add_system(ex6_system_sprite_render_camera      , component_mask(EX6_TransformScreen) | component_mask(Sprite)          , 0);
 	add_system(ex6_system_sprite9patch_render_camera, component_mask(EX6_TransformScreen) | component_mask(EX6_Sprite9Patch), 0);
+	add_system(ex6_system_uiimagebutton         , component_mask(EX6_TransformScreen) | component_mask(EX6_Sprite9Patch) | component_mask(EX6_UIImageButton), 0);
 }
 
 static void game_reset(SDLContext* context, GameState* state)
@@ -472,6 +533,31 @@ static void game_reset(SDLContext* context, GameState* state)
 		entity_add_component(id, EX6_Sprite9Patch, sprite);
 		entity_add_component(id, EX6_HealthRenderer, renderer);
 	}
+
+	// UI button
+	{
+		ITU_EntityId id = itu_entity_create();
+		itu_entity_set_debug_name(id, "UI-button");
+		EX6_TransformScreen transform = { 0 };
+		transform.scale = VEC2F_ONE * 60;
+		transform.position = { 110, 110 };
+
+		EX6_Sprite9Patch   sprite;
+		sprite.rect = { 0, 0, 128, 128 };
+		sprite.texture = state->ui_button;
+		sprite.size = { 1, 1 };
+		sprite.margins_hor = { 0, 0 };
+		sprite.margins_ver = { 0, 0 };
+		sprite.pivot.x = 0.5f;
+		sprite.pivot.y = 0.5f;
+		sprite.tint = COLOR_WHITE;
+
+		EX6_UIImageButton button;
+
+		entity_add_component(id, EX6_TransformScreen, transform);
+		entity_add_component(id, EX6_Sprite9Patch, sprite);
+		entity_add_component(id, EX6_UIImageButton, button);
+	}
 }
 
 int main(void)
@@ -485,7 +571,7 @@ int main(void)
 	context.window_h = WINDOW_H;
 
 	window = SDL_CreateWindow("E06 - UI", WINDOW_W, WINDOW_H, 0);
-	context.renderer = SDL_CreateRenderer(window, "vulkan");
+	context.renderer = SDL_CreateRenderer(window, nullptr);
 	SDL_SetRenderDrawBlendMode(context.renderer, SDL_BLENDMODE_BLEND);
 	
 	// increase the zoom to make debug text more legible
@@ -526,6 +612,7 @@ int main(void)
 	sdl_input_set_mapping_keyboard(&context, SDLK_Q,     BTN_TYPE_ACTION_0);
 	sdl_input_set_mapping_keyboard(&context, SDLK_E,     BTN_TYPE_ACTION_1);
 	sdl_input_set_mapping_keyboard(&context, SDLK_SPACE, BTN_TYPE_SPACE);
+	sdl_input_set_mapping_mouse(&context, SDL_BUTTON_LEFT, BTN_TYPE_ACTION_0);
 
 	while(!quit)
 	{
