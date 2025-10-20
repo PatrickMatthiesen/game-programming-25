@@ -44,6 +44,14 @@
 // offset a pointer by an amount of bytes
 #define pointer_offset(type, pointer, amount) ((type*)((unsigned char*)(pointer) + (amount)))
 
+// indexes a void* array with the given size
+#define pointer_index(pointer, i, elem_size) (((unsigned char*)(pointer) + (i)*(elem_size)))
+
+// effectively checks if `var` is of the given type `T`
+// To be more precise, checks if the compiler can safely cast `var` to `T`.
+// Unless you're doing something very weird, if you use this with non-integral(ie, structs) value types this will work as intended
+#define type_check_struct(T, var) { typedef void (*type_t)(T); type_t tmp__ = (type_t)0; if(0) tmp__(var); }
+
 // trigonometric macros
 #define PI_HALF 1.570796f // radians equivalent of 45 degrees
 #define PI      3.141592f // radians equivalent of 180 degrees
@@ -53,10 +61,11 @@
 #define DEG_2_RAD  0.017453f // constant that, multiplied with an angle in degrees, returns the equivalent in radians
 
 // arbitrary threshold for floating point equality comparison (to avoid approximation errors)
-//
 // NOTE: this may be too big for certain game designs. Change this if you need
 #define FLOAT_EPSILON 0.001f
 
+#define FLOAT_MAX_VAL  2e64; // arbitrary floating point max value. Techically we can hold bigger numbers (https://en.wikipedia.org/wiki/Single-precision_floating-point_format), but precision will be abismal. For games, this should be more than enough
+#define FLOAT_MIN_VAL -2e64; // arbitrary floating point min value. Techically we can hold bigger numbers (https://en.wikipedia.org/wiki/Single-precision_floating-point_format), but precision will be abismal. For games, this should be more than enough
 
 
 // *******************************************************************
@@ -149,7 +158,7 @@ inline vec2f mul_element_wise(vec2f a, vec2f b)
 {
 	vec2f ret;
 	ret.x = a.x * b.x;
-	ret.y = a.x * b.y;
+	ret.y = a.y * b.y;
 	return ret;
 }
 
@@ -250,6 +259,13 @@ inline vec2f lerp(vec2f a, vec2f b, float t)
 	vec2f ret;
 	ret.x = a.x * (1 - t) + t * b.x;
 	ret.y = a.y * (1 - t) + t * b.y;
+	return ret;
+}
+
+inline float lerp(float a, float b, float t)
+{
+	float ret;
+	ret = a * (1 - t) + t * b;
 	return ret;
 }
 

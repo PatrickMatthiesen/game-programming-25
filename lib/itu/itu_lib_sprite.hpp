@@ -99,4 +99,5 @@ void itu_lib_sprite_render_debug(SDLContext* context, Sprite* sprite, Transform*
 	itu_lib_render_draw_rect(context->renderer, vec2f{ rect.x, rect.y }, vec2f{ rect.w, rect.h }, COLOR_WHITE);
 	itu_lib_render_draw_point(context->renderer, pos, 5, COLOR_YELLOW);
 }
+
 #endif // ITU_LIB_SPRITE_IMPLEMENTATION

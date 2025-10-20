@@ -262,7 +262,7 @@ void door_update(SDLContext* context, Entity* entity, DoorData* data)
 	//       in this case however, we don't wont the door to overshoot its targets, so we will clamp it
 	data->animation_current_t = SDL_clamp(data->animation_current_t, 0.0f, 1.0f);
 
-	// apply easing (I went ahead and dumped them all int `itu_common.cpp` in a fancy package
+	// apply easing (I went ahead and dumped them all int `itu_common.cpp` in a fancy package)
 
 	//float v = data->animation_current_t;
 	float v = easing(data->animation_current_t, fn_easing);
@@ -601,7 +601,7 @@ int main(void)
 			ImGui::End();
 		}
 #endif
-		
+
 		itu_lib_imgui_frame_end(&context);
 
 		SDL_GetCurrentTime(&walltime_work_end);

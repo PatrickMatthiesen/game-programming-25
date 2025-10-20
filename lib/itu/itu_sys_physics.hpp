@@ -8,12 +8,32 @@
 #include <itu_lib_engine.hpp>
 #endif
 
+
+
 struct PhysicsData
 {
 	b2BodyId body_id;
-	
+
+	vec2f fixed_step_position;
+	float fixed_step_rotation;
+	vec2f fixed_step_velocity;
+	float fixed_step_torque;
+
 	vec2f velocity;
 	float torque;
+
+	bool ignore_position;
+	bool ignore_rotation;
+};
+
+struct PhysicsStaticData
+{
+	b2BodyId body_id;
+};
+
+struct ShapeData
+{
+	b2ShapeId shape_id;
 };
 
 void itu_sys_physics_init(SDLContext* context);
@@ -192,5 +212,6 @@ void fn_box2d_wrapper_draw_capsule(b2Vec2 p1, b2Vec2 p2, float radius, b2HexColo
 	// No time (and hopefully no need) to make a more optimized version
 	fn_box2d_wrapper_draw_polygon(b2Transform_identity, vertices, MAX_POLYGON_VERTICES, radius, b2_color, context);
 }
+
 
 #endif // (defined ITU_SYS_PHYSICS_IMPLEMENTATION) || (define ITU_UNITY_BUILD)

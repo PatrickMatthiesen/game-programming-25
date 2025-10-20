@@ -546,12 +546,12 @@ int main(void)
 				case SDL_EVENT_KEY_UP:
 					switch(event.key.key)
 					{
-						case SDLK_W: sdl_input_key_process(&context, BTN_TYPE_UP, &event);        break;
-						case SDLK_A: sdl_input_key_process(&context, BTN_TYPE_LEFT, &event);      break;
-						case SDLK_S: sdl_input_key_process(&context, BTN_TYPE_DOWN, &event);      break;
-						case SDLK_D: sdl_input_key_process(&context, BTN_TYPE_RIGHT, &event);     break;
-						case SDLK_Q: sdl_input_key_process(&context, BTN_TYPE_ACTION_0, &event);  break;
-						case SDLK_E: sdl_input_key_process(&context, BTN_TYPE_ACTION_1, &event);  break;
+						case SDLK_W: sdl_input_key_process(&context,     BTN_TYPE_UP, &event);        break;
+						case SDLK_A: sdl_input_key_process(&context,     BTN_TYPE_LEFT, &event);      break;
+						case SDLK_S: sdl_input_key_process(&context,     BTN_TYPE_DOWN, &event);      break;
+						case SDLK_D: sdl_input_key_process(&context,     BTN_TYPE_RIGHT, &event);     break;
+						case SDLK_Q: sdl_input_key_process(&context,     BTN_TYPE_ACTION_0, &event);  break;
+						case SDLK_E: sdl_input_key_process(&context,     BTN_TYPE_ACTION_1, &event);  break;
 						case SDLK_SPACE: sdl_input_key_process(&context, BTN_TYPE_SPACE, &event); break;
 					}
 
