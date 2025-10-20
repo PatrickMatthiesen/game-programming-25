@@ -1,3 +1,15 @@
+#ifndef PHYSICS_TIMESTEP_SECS
+#define PHYSICS_TIMESTEP_SECS (1.0f / 60.0f)
+#endif
+
+#ifndef PHYSICS_TIMESTEP_NSECS
+#define PHYSICS_TIMESTEP_NSECS (SECONDS(1) / 60)
+#endif
+
+#ifndef PHYSICS_MAX_TIMESTEPS_PER_FRAME
+#define PHYSICS_MAX_TIMESTEPS_PER_FRAME 4
+#endif
+
 void itu_system_sprite_render(SDLContext* context, ITU_EntityId* entity_ids, int entity_ids_count)
 {
 	for(int i = 0; i < entity_ids_count; ++i)

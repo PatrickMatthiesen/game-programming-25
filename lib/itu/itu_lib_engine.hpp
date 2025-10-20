@@ -14,6 +14,14 @@
 #include <imgui/imgui.h>
 #endif
 
+#ifndef WINDOW_W
+#define WINDOW_W (context->window_w)
+#endif
+
+#ifndef WINDOW_H
+#define WINDOW_H (context->window_h)
+#endif
+
 
 enum BtnType
 {

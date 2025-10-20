@@ -7,6 +7,9 @@
 
 #define ENABLE_DIAGNOSTICS
 
+#define PHYSICS_TIMESTEP_SECS (1.0f / 60.0f)
+#define PHYSICS_TIMESTEP_NSECS (SECONDS(1) / 60)
+#define PHYSICS_MAX_TIMESTEPS_PER_FRAME 4
 #define TARGET_FRAMERATE SECONDS(1) / 60
 #define WINDOW_W 800
 #define WINDOW_H 600
@@ -379,7 +382,7 @@ static void game_render(SDLContext *context, GameState *state)
 		SDL_RenderDebugTextFormat(context->renderer, box_pos.x + 6, box_pos.y + 6, "Editing tile (%d, %d)", state->edit_tile_x, state->edit_tile_y);
 		SDL_RenderDebugTextFormat(context->renderer, box_pos.x + 6, box_pos.y + 22, "Current idx: %d", state->edit_current_idx);
 		SDL_RenderDebugTextFormat(context->renderer, box_pos.x + 6, box_pos.y + 38, "Type digits, Backspace, Enter to apply, Esc to cancel");
-		SDL_RenderDebugTextFormat(context->renderer, box_pos.x + 6, box_pos.y + 52, "Mouse wheel +/- to change value");
+		SDL_RenderDebugTextFormat(context->renderer, box_pos.x + 6, box_pos.y + 52, "SHFT + Mouse wheel, or +/- to change value");
 	}
 
 	for (int i = 0; i < state->entities_alive_count; ++i)
