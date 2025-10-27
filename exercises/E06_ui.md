@@ -23,7 +23,7 @@ Create a `ex6_debug_ui_render_uiimagebutton()` function
 
 ## 06.3 Rendering text (optional)
 With the knowledge from the previous exercises, create a `EX6_UILabel` struct and use it to render text in game. In order to do so you'll need to use the [SDL_ttf](https://github.com/libsdl-org/SDL_ttf) library.
-In order to use it, go to the `lib/SDL_tt` folder and on a console run the command ` git submodule update --init --recursive` to download the 3rd partly libraries.
+In order to use it, go to the `lib/SDL_tt` folder and on a console run the command `git submodule update --init --recursive` to download the 3rd partly libraries.
 
 The most relevant API calls are:
 - `TTF_Init()` init the library

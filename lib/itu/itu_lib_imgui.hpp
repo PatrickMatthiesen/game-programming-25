@@ -2,6 +2,7 @@
 #define ITU_LIB_IMGUI_HPP
 
 #ifndef ITU_UNITY_BUILD
+#include <itu_lib_engine.hpp>
 #include <imgui/imgui.h>
 #include <imgui/imgui_impl_sdl3.h>
 #include <imgui/imgui_impl_sdlrenderer3.h>
@@ -21,15 +22,23 @@ inline void itu_lib_imgui_setup(SDL_Window* window, SDLContext* context, bool in
 
 	ImGui::CreateContext();
 	ImGuiIO& io = ImGui::GetIO();
+
+	io.FontDefault = io.Fonts->AddFontFromFileTTF("data\\Roboto-Medium.ttf", 16);
+	//io.FontDefault = io.Fonts->AddFontFromFileTTF("data\\MSGOTHIC.TTC");
 	if(intercept_keyboard)
 		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
 
 	// defaults to dark style (easier on both eyes and environment)
 	ImGui::StyleColorsDark();
 
+	// do some small tweaks
+	ImGuiStyle& style = ImGui::GetStyle();
+	style.Colors[ImGuiCol_FrameBg] = ImVec4 { 33/255.0f, 33/255.0f, 33/255.0f, 255/255.0f };
+	style.FontScaleMain = context->zoom;
 	// Setup Platform/Renderer backends
 	ImGui_ImplSDL3_InitForSDLRenderer(window, context->renderer);
 	ImGui_ImplSDLRenderer3_Init(context->renderer);
+
 }
 
 inline bool itu_lib_imgui_process_sdl_event(SDL_Event* event)
@@ -40,6 +49,9 @@ inline bool itu_lib_imgui_process_sdl_event(SDL_Event* event)
 	//       (ie, tab to navigate controls would reset the game state, not great)
 	if(event->type == SDL_EVENT_KEY_DOWN || event->type == SDL_EVENT_KEY_UP)
 	{
+		// TMP HACK TO CLOSE DEBUG UI EVEN WHEN IT HAS FOCUS
+		if(event->type == SDL_EVENT_KEY_DOWN && event->key.key == SDLK_F1)
+			return false;
 		ImGuiIO& io = ImGui::GetIO();
 		return io.WantCaptureKeyboard;
 	}

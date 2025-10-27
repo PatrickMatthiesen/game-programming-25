@@ -1,11 +1,6 @@
 #define TEXTURE_PIXELS_PER_UNIT 64   // how many pixels of textures will be mapped to a single world unit
 #define CAMERA_PIXELS_PER_UNIT  32   // how many pixels of windows will be used to render a single world unit
 
-#include <itu_unity_include.hpp>
-
-#include "ES05_sys_audio.hpp"
-#include "ES05_sys_animation.hpp"
-
 #define ENABLE_DIAGNOSTICS
 
 // rendering framerate
@@ -19,6 +14,11 @@
 
 #define WINDOW_W         800
 #define WINDOW_H         600
+
+#include <itu_unity_include.hpp>
+
+#include "ES05_sys_audio.hpp"
+#include "ES05_sys_animation.hpp"
 
 #define ENTITY_COUNT   1024
 #define PLATFORM_COUNT   32

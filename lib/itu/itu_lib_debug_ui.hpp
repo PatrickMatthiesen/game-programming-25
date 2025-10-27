@@ -37,7 +37,8 @@ void itu_debug_ui_render_sprite(SDLContext* context, void* data)
 {
 	Sprite* data_sprite = (Sprite*)data;
 
-	//ImGui::LabelText("texture", "TODO NotYetImplemented");
+	itu_sys_rstorage_debug_render_texture(data_sprite->texture, &data_sprite->texture, &data_sprite->rect);
+
 	ImGui::DragFloat4("texture rect", &data_sprite->rect.x);
 	ImGui::DragFloat2("pivot", &data_sprite->pivot.x);
 

@@ -32,6 +32,9 @@ enum BtnType
 	BTN_TYPE_ACTION_0,
 	BTN_TYPE_ACTION_1,
 	BTN_TYPE_SPACE,
+	
+	BTN_TYPE_UI_SELECT,
+	BTN_TYPE_UI_EXTRA,  // right click
 
 	BTN_TYPE_MAX
 };
@@ -56,6 +59,9 @@ struct Camera
 
 struct SDLContext
 {
+	const char* working_dir;
+
+	SDL_Window* window;
 	SDL_Renderer* renderer;
 	float zoom;     // render zoom
 	float window_w;	// current window width after render zoom has been applied
@@ -105,6 +111,8 @@ struct SDLContext
 
 	stbds_hm(SDL_Keycode, BtnType) mappings_keyboard;
 	stbds_hm(Uint8, BtnType)       mappings_mouse;
+
+	bool debug_ui_show;
 };
 
 #define TRANSFORM_DEFAULT Transform { { 0, 0 }, { 1, 1 }, 0 }
@@ -338,11 +346,16 @@ bool sdl_process_events(SDLContext* context)
 				break;
 			}
 			case SDL_EVENT_KEY_DOWN:
+			{
+				// debug ui (explicit fallthrough)
+				if(event.key.key == SDLK_F1 && !event.key.repeat)
+					context->debug_ui_show = !context->debug_ui_show;
+			}
 			case SDL_EVENT_KEY_UP:
 			{
 				int i = stbds_hmgeti(context->mappings_keyboard, event.key.key);
 				if(i != -1)
-					sdl_input_key_process(context,  context->mappings_keyboard[i].value, &event);
+					sdl_input_key_process(context, context->mappings_keyboard[i].value, &event);
 				break;
 			}
 		}

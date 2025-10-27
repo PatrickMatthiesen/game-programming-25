@@ -22,7 +22,10 @@
 #include <itu_common.hpp>
 #include <itu_lib_engine.hpp>
 
+#include <itu_lib_fileutils.hpp>
+
 #include <itu_entity_storage.hpp>
+#include <itu_resource_storage.hpp>
 
 #include <itu_lib_render.hpp>
 #include <itu_lib_overlaps.hpp>
@@ -32,5 +35,7 @@
 #include <itu_sys_physics.hpp>
 
 #include <itu_lib_debug_ui.hpp>
+
+#include <itu_resource_storage.cpp>
 #include <itu_default_systems.cpp>
 #include <itu_entity_storage.cpp>
