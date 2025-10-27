@@ -73,7 +73,7 @@ register_component(EX6_Sprite9Patch)
 
 struct EX6_UIImageButton
 {
-	
+	char text[64]; // fixed capacity, safe to copy
 };
 register_component(EX6_UIImageButton)
 
@@ -130,6 +130,14 @@ void ex6_system_uiimagebutton(SDLContext* context, ITU_EntityId* entity_ids, int
 	}
 }
 
+void ex6_debug_ui_render_uiimagebutton(SDLContext* context, void* data)
+{
+	EX6_UIImageButton* data_button = (EX6_UIImageButton*)data;
+
+	// no data to edit for now
+	// ImGui::AcceptDragDropPayload("TEXTURE_ATLAS", nullptr, 0);
+	ImGui::InputTextWithHint("##button_text_input_hint", "Button Text", data_button->text, 64);
+}
 
 // ============================================================================================
 // TMP methods
@@ -407,6 +415,7 @@ static void game_init(SDLContext* context, GameState* state)
 	add_component_debug_ui_render(EX6_HealthRenderer, ex6_debug_ui_render_healthrenderer);
 	add_component_debug_ui_render(EX6_TransformScreen, ex6_debug_ui_render_transformscreen);
 	add_component_debug_ui_render(EX6_Sprite9Patch, ex6_debug_ui_render_sprite9patch);
+	add_component_debug_ui_render(EX6_UIImageButton, ex6_debug_ui_render_uiimagebutton);
 
 	itu_sys_estorage_tag_set_debug_name(TAG_CAMERA_TARGET, "camera target");
 	itu_sys_estorage_tag_set_debug_name(TAG_ASTEROID, "asteroid");
@@ -553,6 +562,7 @@ static void game_reset(SDLContext* context, GameState* state)
 		sprite.tint = COLOR_WHITE;
 
 		EX6_UIImageButton button;
+		SDL_snprintf(button.text, 64, "Click Me!");
 
 		entity_add_component(id, EX6_TransformScreen, transform);
 		entity_add_component(id, EX6_Sprite9Patch, sprite);
